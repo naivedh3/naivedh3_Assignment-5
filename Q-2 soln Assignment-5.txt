@@ -1,0 +1,69 @@
+2: Voting System Contract: Create a Solidity smart contract for a voting system where participants can vote on multiple proposals. The contract should allow users to propose new options, cast votes, and view the current results. Ensure that each address can vote only once per proposal, and implement a function to determine the winning proposal based on the highest number of votes.
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract VotingSystem {
+
+    // Structure to represent a proposal
+    struct Proposal {
+        string name;
+        uint256 voteCount;
+    }
+
+    // Array to store proposals
+    Proposal[] public proposals;
+
+    // Mapping to track whether an address has voted for a particular proposal
+    mapping(uint256 => mapping(address => bool)) public votes;
+
+    // Event to log when a new proposal is added
+    event ProposalAdded(uint256 proposalId, string name);
+    // Event to log when a vote is cast
+    event VoteCasted(uint256 proposalId, address voter);
+
+    // Function to add a new proposal
+    function addProposal(string memory _name) public {
+        proposals.push(Proposal({
+            name: _name,
+            voteCount: 0
+        }));
+        emit ProposalAdded(proposals.length - 1, _name);
+    }
+
+    // Function to cast a vote for a proposal
+    function vote(uint256 _proposalId) public {
+        require(_proposalId < proposals.length, "Invalid proposal ID");
+        require(!votes[_proposalId][msg.sender], "You have already voted for this proposal");
+
+        // Mark the address as having voted for this proposal
+        votes[_proposalId][msg.sender] = true;
+
+        // Increment the vote count for the proposal
+        proposals[_proposalId].voteCount += 1;
+
+        emit VoteCasted(_proposalId, msg.sender);
+    }
+
+    // Function to get the proposal details
+    function getProposal(uint256 _proposalId) public view returns (string memory name, uint256 voteCount) {
+        require(_proposalId < proposals.length, "Invalid proposal ID");
+        Proposal memory proposal = proposals[_proposalId];
+        return (proposal.name, proposal.voteCount);
+    }
+
+    // Function to determine the winning proposal
+    function getWinningProposal() public view returns (string memory winningProposalName, uint256 winningVoteCount) {
+        uint256 highestVoteCount = 0;
+        string memory winningProposalName;
+
+        for (uint256 i = 0; i < proposals.length; i++) {
+            if (proposals[i].voteCount > highestVoteCount) {
+                highestVoteCount = proposals[i].voteCount;
+                winningProposalName = proposals[i].name;
+            }
+        }
+        
+        return (winningProposalName, highestVoteCount);
+    }
+}

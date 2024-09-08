@@ -1,0 +1,88 @@
+1: Crowdfunding Contract: Create a Solidity smart contract for a crowdfunding platform. The contract should allow users to create crowdfunding campaigns with a target amount and a deadline. Participants can contribute funds to these campaigns, and the contract should track the total contributions. Implement a function to finalize the campaign: if the target is met by the deadline, release the funds to the campaign creator; otherwise, allow contributors to withdraw their funds.
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Crowdfunding {
+
+    // Structure to represent a campaign
+    struct Campaign {
+        address creator;
+        uint256 targetAmount;
+        uint256 deadline;
+        uint256 totalContributions;
+        bool finalized;
+    }
+
+    // Mapping to store campaigns by their IDs
+    mapping(uint256 => Campaign) public campaigns;
+    // Mapping to track contributions of each address for each campaign
+    mapping(uint256 => mapping(address => uint256)) public contributions;
+
+    // Counter for campaign IDs
+    uint256 public nextCampaignId;
+
+    // Event to log the creation of a new campaign
+    event CampaignCreated(uint256 campaignId, address creator, uint256 targetAmount, uint256 deadline);
+    // Event to log a new contribution
+    event ContributionMade(uint256 campaignId, address contributor, uint256 amount);
+    // Event to log the finalization of a campaign
+    event CampaignFinalized(uint256 campaignId, bool success);
+
+    // Function to create a new campaign
+    function createCampaign(uint256 _targetAmount, uint256 _duration) public {
+        require(_targetAmount > 0, "Target amount must be greater than 0");
+        require(_duration > 0, "Duration must be greater than 0");
+
+        uint256 campaignId = nextCampaignId++;
+        Campaign storage newCampaign = campaigns[campaignId];
+        newCampaign.creator = msg.sender;
+        newCampaign.targetAmount = _targetAmount;
+        newCampaign.deadline = block.timestamp + _duration;
+        newCampaign.finalized = false;
+
+        emit CampaignCreated(campaignId, msg.sender, _targetAmount, newCampaign.deadline);
+    }
+
+    // Function to contribute to a campaign
+    function contribute(uint256 _campaignId) public payable {
+        Campaign storage campaign = campaigns[_campaignId];
+        require(block.timestamp < campaign.deadline, "Campaign has ended");
+        require(msg.value > 0, "Contribution must be greater than 0");
+
+        campaign.totalContributions += msg.value;
+        contributions[_campaignId][msg.sender] += msg.value;
+
+        emit ContributionMade(_campaignId, msg.sender, msg.value);
+    }
+
+    // Function to finalize the campaign
+    function finalizeCampaign(uint256 _campaignId) public {
+        Campaign storage campaign = campaigns[_campaignId];
+        require(block.timestamp >= campaign.deadline, "Campaign has not ended yet");
+        require(!campaign.finalized, "Campaign already finalized");
+
+        if (campaign.totalContributions >= campaign.targetAmount) {
+            // Target met, transfer funds to the campaign creator
+            payable(campaign.creator).transfer(campaign.totalContributions);
+            emit CampaignFinalized(_campaignId, true);
+        } else {
+            // Target not met, mark campaign as finalized
+            campaign.finalized = true;
+            emit CampaignFinalized(_campaignId, false);
+        }
+    }
+
+    // Function for contributors to withdraw funds if the campaign was not successful
+    function withdraw(uint256 _campaignId) public {
+        Campaign storage campaign = campaigns[_campaignId];
+        require(campaign.finalized, "Campaign not finalized");
+        require(campaign.totalContributions < campaign.targetAmount, "Target was met");
+
+        uint256 amount = contributions[_campaignId][msg.sender];
+        require(amount > 0, "No funds to withdraw");
+
+        contributions[_campaignId][msg.sender] = 0;
+        payable(msg.sender).transfer(amount);
+    }
+}
